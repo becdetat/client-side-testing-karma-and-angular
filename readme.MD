@@ -2,6 +2,7 @@ Testing an Angular app using Karma, Mocha, PhantomJS and Chai
 =============================================================
 
 
+
 ## Setting up Karma with Mocha, PhantomJS and Chai
 
 I'm following the [installation guide](http://karma-runner.github.io/0.12/intro/installation.html) at [karma-runner.github.io](http://karma-runner.github.io).
@@ -150,4 +151,134 @@ This resolves an instance of the `MyController` controller. The instance is then
 
 ## `$scope` injection
 
-The `$scope` that gets injected in to an Angular controller is just a JS object
+The `$scope` that gets injected in to an Angular controller is just a JS object. I'll assign a value and a method to `$scope` for another test. The controller declaration changes to this:
+
+	angular
+		.module('my-module')
+		.controller('MyController', [
+			'$scope',
+			function($scope){
+				var self = this;
+
+				// ...
+
+				$scope.songs = [
+					'Here Comes The Sun'
+				];
+
+				$scope.addSong = function(song) {
+					$scope.songs.push(song);
+				};
+
+				return self;
+			}
+	]);
+
+The existing test can just pass in an empty object to the controller resolution:
+
+	var myController = $controller('MyController', {
+		$scope: {}
+	});
+
+Now the new test can inject, use and inspect a mock scope:
+
+	describe('addSong()', function(){
+		it('should add songs', inject(function($controller) {
+			var scope = {};
+			var myController = $controller('MyController', {
+				$scope: scope
+			});
+
+			scope.addSong('While My Guitar Gently Weeps');
+
+			scope.songs.should.contain('While My Guitar Gently Weeps');
+		}));
+	});
+
+## Injecting and mocking `$http`
+
+So now I've got a web service that I call to populate something on `$scope`:
+
+	angular
+		.module('my-module')
+		.controller('MyController', [
+			'$scope', '$http',
+			function($scope, $http){
+				var self = this;
+
+				// ...
+
+				$scope.instruments = ['foo'];
+
+				$http.get('api/get-instruments')
+					.success(function(data) {
+						$scope.instruments = data;
+					});
+
+				return self;
+			}
+	]);
+
+The [`$httpBackend`](https://docs.angularjs.org/api/ngMock/service/$httpBackend) is an `angular-mocks` service that fakes the `$http` service:
+
+	describe('get-instruments result', function(){
+		it('should be added to scope', inject(function($controller, $httpBackend){
+			var scope = {};
+			$httpBackend
+				.when('GET', 'api/get-instruments')
+				.respond([
+					'vocals', 'guitar', 'sitar'
+				]);
+			var myController = $controller('MyController', {
+				$scope: scope
+			});
+
+			$httpBackend.flush();
+
+			scope.instruments.should.contain('guitar');
+		}));
+	});
+
+The `$httpBackend.flush()` simulates the async calls completing, so they can be tested synchronously.
+
+
+## Simulating `$http` errors
+
+If the call to `api/get-instruments` fails, I want to set a status to 'ERROR':
+
+	$scope.instruments = ['foo'];
+	$scope.status = '';
+
+	$http.get('api/get-instruments')
+		.success(function(data) {
+			$scope.instruments = data;
+		})
+		.error(function(e) {
+			$scope.status = 'ERROR';
+		});
+
+To simulate the error, you can just tell the `$httpBackend` to respond with an error code (500):
+
+	describe('get-instruments with error', function(){
+		it('should have a status with error', inject(function($controller, $httpBackend){
+			var scope = {};
+			$httpBackend
+				.when('GET', 'api/get-instruments')
+				.respond(500, '');
+			var myController = $controller('MyController', {
+				$scope: scope
+			});
+
+			$httpBackend.flush();
+
+			scope.status.should.equal('ERROR');
+		}));
+	});
+
+
+## Here is a cat doing some TDD
+
+![Source: http://www.aaamovies.com/Pictures%5CTestCatProfilePicture.jpg](http://bendetat.com/images/tdd-cat)
+
+
+

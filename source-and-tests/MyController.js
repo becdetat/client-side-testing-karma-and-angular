@@ -4,8 +4,8 @@
 	angular
 		.module('my-module')
 		.controller('MyController', [
-			'$scope',
-			function($scope){
+			'$scope', '$http',
+			function($scope, $http){
 				var self = this;
 
 				self.firstName = '';
@@ -23,6 +23,16 @@
 					$scope.songs.push(song);
 				};
 
+				$scope.instruments = ['foo'];
+				$scope.status = '';
+
+				$http.get('api/get-instruments')
+					.success(function(data) {
+						$scope.instruments = data;
+					})
+					.error(function(e) {
+						$scope.status = 'ERROR';
+					});
 
 				return self;
 			}
